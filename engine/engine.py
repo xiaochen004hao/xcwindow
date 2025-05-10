@@ -133,13 +133,19 @@ vulkan.vkGetPhysicalDeviceQueueFamilyProperties.argtypes = [
 ]
 vulkan.vkGetPhysicalDeviceQueueFamilyProperties.restype = None
 
-vulkan.vkGetPhysicalDeviceSurfaceSupportKHR.argtypes = [
-    ctypes.c_void_p,  # physicalDevice
-    ctypes.c_uint32,  # queueFamilyIndex
-    ctypes.c_void_p,  # surface
-    ctypes.POINTER(ctypes.c_uint32)  # pSupported
-]
-vulkan.vkGetPhysicalDeviceSurfaceSupportKHR.restype = ctypes.c_int
+# 确保正确加载Vulkan函数
+if not hasattr(vulkan, 'vkGetPhysicalDeviceSurfaceSupportKHR'):
+    # 显式获取函数指针
+    vkGetPhysicalDeviceSurfaceSupportKHR = vulkan.vkGetPhysicalDeviceSurfaceSupportKHR
+    vkGetPhysicalDeviceSurfaceSupportKHR.argtypes = [
+        ctypes.c_void_p,  # physicalDevice
+        ctypes.c_uint32,  # queueFamilyIndex
+        ctypes.c_void_p,  # surface
+        ctypes.POINTER(ctypes.c_uint32)  # pSupported
+    ]
+    vkGetPhysicalDeviceSurfaceSupportKHR.restype = ctypes.c_int
+    # 将函数指针赋值给模块
+    vulkan.vkGetPhysicalDeviceSurfaceSupportKHR = vkGetPhysicalDeviceSurfaceSupportKHR
 
 # 声明交换链相关函数原型
 vulkan.vkCreateDevice.argtypes = [
@@ -307,12 +313,16 @@ class EngineBase:
                                 index: int,
                                 queue_family: VkQueueFamilyProperties) -> bool:
         """检查队列族是否适合图形和呈现"""
-        present_support = ctypes.c_uint32(0)
+        present_support = ctypes.c_uint32(False)
+        # 确保正确传递surface参数
         result = vulkan.vkGetPhysicalDeviceSurfaceSupportKHR(
-            device, index, self.surface, ctypes.byref(present_support)
+            device,
+            ctypes.c_uint32(index),
+            self.surface,
+            (ctypes.byref(present_support))
         )
 
-        return (result == 0 and
+        return (result == VK_SUCCESS and
                 (queue_family.queueFlags & VK_QUEUE_GRAPHICS_BIT) and
                 present_support.value)
 

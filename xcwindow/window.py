@@ -368,7 +368,11 @@ class XCWindowBase:
             self.g_icon_handles = (self.g_icon_handles[0], icon)
 
     def _get_app_state(self, hwnd: wintypes.HWND):
-        ptr = LONG_PTR(user32.GetWindowLongPtrW(hwnd, Constant.GWLP_USERDATA))
+        if hasattr(user32, 'GetWindowLongPtrW'):
+            ptr = LONG_PTR(user32.GetWindowLongPtrW(hwnd, Constant.GWLP_USERDATA))
+        else:
+            # 32位系统回退到GetWindowLongW
+            ptr = LONG_PTR(user32.GetWindowLongW(hwnd, Constant.GWLP_USERDATA))
         pState = ctypes.cast(ptr, ctypes.POINTER(StateInfo))
         return pState
 
