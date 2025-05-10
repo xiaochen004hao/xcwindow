@@ -1,3 +1,3 @@
-from .window import XCWindowBase
+from .window import XCWindowBase, VulkanWindow
 
-__all__ = ['XCWindowBase']
+__all__ = ['XCWindowBase', 'VulkanWindow']

@@ -6,6 +6,8 @@ from enum import Enum, auto
 from typing import Optional, Tuple, Union
 from .error import XCRegisterClassError, XCCreateWindowError, XCLoadIconWarning
 from .constant import Constant
+from engine import EngineBase
+import time
 
 # 类型别名定义
 HICON = wintypes.HANDLE
@@ -476,8 +478,33 @@ class XCWindowBase:
         )
 
 
+class VulkanWindow(XCWindowBase):
+    def __init__(self, width, height, title="Vulkan Test"):
+        super().__init__(width, height, title)
+        self.setCaptionColor(233, 235, 254)
+        self.engine = EngineBase(self.hwnd, self.wc.hInstance)
+        self.last_frame_time = time.time()
+
+    def run(self):
+        """重写run方法，添加渲染循环"""
+        if not self.hwnd:
+            raise RuntimeError("窗口尚未创建")
+
+        while user32.GetMessageW(self.pMsg, None, 0, 0) > 0:
+            # 处理消息
+            user32.TranslateMessage(self.pMsg)
+            user32.DispatchMessageW(self.pMsg)
+
+            # 渲染帧
+            current_time = time.time()
+            if current_time - self.last_frame_time >= 1.0/60.0:  # 60FPS
+                self.engine.render_frame()
+                self.last_frame_time = current_time
+
+
 __all__ = [
     "XCWindowBase",
+    "VulkanWindow",
 ]
 
 if __name__ == "__main__":

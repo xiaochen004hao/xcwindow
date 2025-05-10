@@ -226,8 +226,6 @@ class EngineBase:
 
         self.instance = instance
 
-        # 创建窗口表面
-        self._create_surface()
         return instance
 
     def _create_surface(self) -> VkSurface:
@@ -484,13 +482,72 @@ class EngineBase:
             子类应该重写_custom_render方法实现实际渲染逻辑
         """
         try:
-            image_index = self._acquire_next_image()
+            # 尝试获取下一帧图像
+            try:
+                image_index = self._acquire_next_image()
+            except RuntimeError as e:
+                if "1000001003" in str(e):  # VK_ERROR_OUT_OF_DATE_KHR
+                    self._recreate_swapchain()
+                    return False
+                raise e
+
             self._custom_render(image_index)
-            self._present_image(image_index)
+
+            # 呈现图像
+            try:
+                result = self._present_image(image_index)
+                if result == 1000001003:  # VK_ERROR_OUT_OF_DATE_KHR
+                    self._recreate_swapchain()
+                    return False
+            except RuntimeError as e:
+                if "1000001003" in str(e):
+                    self._recreate_swapchain()
+                    return False
+                raise e
+
             return True
         except Exception as e:
             print(f"渲染帧时出错: {e}")
             return False
+
+    def _acquire_next_image(self) -> int:
+        """
+        获取交换链中的下一帧图像
+
+        返回:
+            int: 获取到的图像索引
+
+        异常:
+            RuntimeError: 如果获取图像失败
+        """
+        image_index = ctypes.c_uint32(0)
+        result = vulkan.vkAcquireNextImageKHR(
+            self.device,
+            self.swapchain,
+            0xFFFFFFFFFFFFFFFF,  # UINT64_MAX
+            None,  # 不使用信号量
+            None,  # 不使用栅栏
+            ctypes.byref(image_index)
+        )
+        if result != VK_SUCCESS:
+            raise RuntimeError(f"获取下一帧图像失败: {result}")
+        return image_index.value
+
+    def _recreate_swapchain(self) -> None:
+        """重建交换链"""
+        # 等待设备空闲
+        self._wait_device_idle()
+
+        # 销毁旧交换链
+        if hasattr(self, 'swapchain'):
+            vulkan.vkDestroySwapchainKHR(self.device, self.swapchain, None)
+
+        # 重建交换链
+        self._create_swapchain()
+
+    def _wait_device_idle(self) -> None:
+        """等待设备空闲"""
+        vulkan.vkDeviceWaitIdle(self.device)
 
     def _check_vk_result(self, result: int, message: str) -> None:
         """
